@@ -1,0 +1,14 @@
+{
+    "name": "tarasalk/racio_test",
+    "description": "описание",
+    "version": "1",
+    "license": "лицензия",
+    "require": {
+        "catfan/Medoo": "^1.1"
+    },
+    "autoload": {
+        "psr-4": {
+            "Plp\\Task\\": "src/"
+        }
+    }
+}

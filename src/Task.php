@@ -22,7 +22,21 @@ class Task {
     }
 
     public function run() {
-        echo 'end';
+        echo "start\n";
+
+        $this->initConnection();
+
+        $aTasks = $this->db->select('task', '*');
+
+        foreach ($aTasks as $aTask) {
+            $class = "\Plp\Task\\" . $aTask['task'];
+            $method = $aTask['action'];
+            $data = $aTask['data'];
+
+            $class::$method($data);
+        }
+
+        echo "end";
     }
 
     public function migrate() {

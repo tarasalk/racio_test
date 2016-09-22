@@ -14,7 +14,7 @@ class App {
 
     const CLASS_NAMESPACE = '\Plp\Task\\';
 
-    const TASK_STATUS_DENIED = -1;
+    const TASK_STATUS_FAIL = -1;
     const TASK_STATUS_QUEUE = 0;
     const TASK_STATUS_RUN = 1;
     const TASK_STATUS_COMPLETE = 2;
@@ -37,38 +37,95 @@ class App {
         while (true) {
             $aTask = $this->getTask();
 
-            $this->runTask($aTask);
-
-            break;
+            if (!empty($aTask)) {
+                $this->runTask($aTask);
+            }
+            else {
+                echo date('d.m.Y H:i:s') . " no tasks available\n";
+                sleep(10);
+            }
         }
     }
 
     private function getTask() {
         return $this->db->get(self::TABLE_NAME, '*', [
-            'status' => self::TASK_STATUS_QUEUE,
+            'AND' => [
+                'status' => self::TASK_STATUS_QUEUE,
+                'OR' => [
+                    '#deffer[<]' => 'NOW()',
+                    'deffer' => null
+                ],
+            ],
             'ORDER' => 'id'
         ]);
     }
 
     private function runTask(array $aTask) {
+        $result = '';
+
+        try {
+            $this->db->update(self::TABLE_NAME, [
+                'status' => self::TASK_STATUS_RUN
+            ], [
+                'id' => $aTask['id']
+            ]);
+
+            $class =  self::CLASS_NAMESPACE . $aTask['task'];
+            $method = $aTask['action'];
+            $data = json_decode($aTask['data'], true);
+
+            $result = $class::$method($data);
+
+            $this->db->update(self::TABLE_NAME, [
+                'status' => self::TASK_STATUS_COMPLETE,
+                'result' => json_encode($result)
+            ], [
+                'id' => $aTask['id']
+            ]);
+        }
+        catch (UserException $e) {
+            $result = ['message' => $e->getMessage()];
+
+            if ($aTask['retries'] < 2) {
+                $this->taskDeffered($aTask, $result);
+            }
+            else {
+                $this->taskFailed($aTask, $result);
+            }
+        }
+        catch (FatalException $e) {
+            $result = [
+                'message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ];
+
+            $this->taskFailed($aTask, $result);
+        }
+
+        printf("%s id: %s, task: %s, action: %s, result: %s\n",
+            date('d.m.Y H:i:s'), $aTask['id'], $aTask['task'], $aTask['action'], print_r($result, true));
+    }
+
+    private function taskDeffered(array $aTask, $result) {
         $this->db->update(self::TABLE_NAME, [
-            'status' => self::TASK_STATUS_RUN
-        ], [
+            'retries[+]' => 1,
+            'result' => json_encode($result),
+            "deffer" => date('Y-m-d H:i:s', time() + 60*60),
+            'status' => self::TASK_STATUS_QUEUE
+        ],[
             'id' => $aTask['id']
         ]);
+    }
 
-        $class =  self::CLASS_NAMESPACE . $aTask['task'];
-        $method = $aTask['action'];
-        $data = json_decode($aTask['data'], true);
-
-        $result = $class::$method($data);
-
+    private function taskFailed(array $aTask, $result) {
         $this->db->update(self::TABLE_NAME, [
-            'status' => self::TASK_STATUS_COMPLETE,
+            'status' => self::TASK_STATUS_FAIL,
             'result' => json_encode($result)
-        ], [
+        ],[
             'id' => $aTask['id']
         ]);
+
+        error_log(implode(', ', $result), 0);
     }
 
     public function migrate() {

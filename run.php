@@ -1,6 +1,6 @@
 <?php
 
-use Plp\Task\Task;
+use Plp\Task\App;
 
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
@@ -25,5 +25,5 @@ else {
     $method = 'run';
 }
 
-$task = new Task($config);
+$task = new App($config);
 $task->$method();

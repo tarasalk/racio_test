@@ -4,12 +4,22 @@ namespace Plp\Task;
 
 use medoo;
 
-class Task {
+class App {
 
+    /** @var array */
     private $config;
 
     /** @var $db medoo */
     private $db;
+
+    const CLASS_NAMESPACE = '\Plp\Task\\';
+
+    const TASK_STATUS_DENIED = -1;
+    const TASK_STATUS_QUEUE = 0;
+    const TASK_STATUS_RUN = 1;
+    const TASK_STATUS_COMPLETE = 2;
+
+    const TABLE_NAME = 'task';
 
     public function __construct(array $config) {
         $this->config = $config;
@@ -22,21 +32,43 @@ class Task {
     }
 
     public function run() {
-        echo "start\n";
-
         $this->initConnection();
 
-        $aTasks = $this->db->select('task', '*');
+        while (true) {
+            $aTask = $this->getTask();
 
-        foreach ($aTasks as $aTask) {
-            $class = "\Plp\Task\\" . $aTask['task'];
-            $method = $aTask['action'];
-            $data = $aTask['data'];
+            $this->runTask($aTask);
 
-            $class::$method($data);
+            break;
         }
+    }
 
-        echo "end";
+    private function getTask() {
+        return $this->db->get(self::TABLE_NAME, '*', [
+            'status' => self::TASK_STATUS_QUEUE,
+            'ORDER' => 'id'
+        ]);
+    }
+
+    private function runTask(array $aTask) {
+        $this->db->update(self::TABLE_NAME, [
+            'status' => self::TASK_STATUS_RUN
+        ], [
+            'id' => $aTask['id']
+        ]);
+
+        $class =  self::CLASS_NAMESPACE . $aTask['task'];
+        $method = $aTask['action'];
+        $data = json_decode($aTask['data'], true);
+
+        $result = $class::$method($data);
+
+        $this->db->update(self::TABLE_NAME, [
+            'status' => self::TASK_STATUS_COMPLETE,
+            'result' => json_encode($result)
+        ], [
+            'id' => $aTask['id']
+        ]);
     }
 
     public function migrate() {

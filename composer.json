@@ -4,7 +4,8 @@
     "version": "1",
     "license": "лицензия",
     "require": {
-        "catfan/Medoo": "^1.1"
+        "catfan/Medoo": "^1.1",
+        "phpunit/phpunit": "5.5.*"
     },
     "autoload": {
         "psr-4": {

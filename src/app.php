@@ -7,10 +7,10 @@ use medoo;
 class App {
 
     /** @var array */
-    private $config;
+    protected $config;
 
     /** @var $db medoo */
-    private $db;
+    protected $db;
 
     const CLASS_NAMESPACE = '\Plp\Task\\';
 
@@ -23,17 +23,20 @@ class App {
 
     public function __construct(array $config) {
         $this->config = $config;
+        $this->initConnection();
     }
 
-    private function initConnection() {
+    protected function initConnection() {
         if (empty($this->db)) {
             $this->db = new medoo($this->config);
         }
     }
 
-    public function run() {
-        $this->initConnection();
+    public function getConnection() {
+        return $this->db;
+    }
 
+    public function run() {
         while (true) {
             $aTask = $this->getTask();
 
@@ -47,7 +50,7 @@ class App {
         }
     }
 
-    private function getTask() {
+    protected function getTask() {
         return $this->db->get(self::TABLE_NAME, '*', [
             'AND' => [
                 'status' => self::TASK_STATUS_QUEUE,
@@ -60,7 +63,7 @@ class App {
         ]);
     }
 
-    private function runTask(array $aTask) {
+    protected function runTask(array $aTask) {
         $result = '';
 
         try {
@@ -106,7 +109,7 @@ class App {
             date('d.m.Y H:i:s'), $aTask['id'], $aTask['task'], $aTask['action'], print_r($result, true));
     }
 
-    private function taskDeffered(array $aTask, $result) {
+    protected function taskDeffered(array $aTask, $result) {
         $this->db->update(self::TABLE_NAME, [
             'retries[+]' => 1,
             'result' => json_encode($result),
@@ -117,7 +120,7 @@ class App {
         ]);
     }
 
-    private function taskFailed(array $aTask, $result) {
+    protected function taskFailed(array $aTask, $result) {
         $this->db->update(self::TABLE_NAME, [
             'status' => self::TASK_STATUS_FAIL,
             'result' => json_encode($result)
@@ -129,8 +132,6 @@ class App {
     }
 
     public function migrate() {
-        $this->initConnection();
-
         $sql = '
             SET NAMES utf8;
 
